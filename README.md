@@ -10,7 +10,7 @@ Instead of creating a WebClient/WebRequest to check newest version and download 
 ```
 UpdateManager um = new UpdateManager("url.exe", "executablePath", "updaterPath"); 
 // For zip files
-UpdateManager um = new UpdateManager("url.exe", "zipPath", "updaterPath", "zipExtractionPath", "executablePathInsideZip"); 
+UpdateManager um = new UpdateManager("url.zip", "zipPath", "updaterPath", "zipExtractionPath", "executablePathInsideZip"); 
 ```
 
 Updater console app is included in the lib, extract it and use its file path in the "updaterPath" field
