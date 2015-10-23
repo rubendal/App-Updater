@@ -56,6 +56,7 @@ namespace Updater
                     Console.WriteLine(e.Message.ToString()  + "\n" + e.StackTrace + "\nPress any key to close...");
                     Console.ReadKey();
                 }
+                
             }
         }
     }
