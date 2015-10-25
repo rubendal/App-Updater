@@ -7,6 +7,7 @@ using System.IO;
 using System.Net;
 using System.Diagnostics;
 using System.ComponentModel;
+using System.IO.Compression;
 
 namespace Updater
 {
@@ -19,7 +20,7 @@ namespace Updater
         private bool isZip { get; set; }
         private string updaterPath { get; set; }
         private WebClient webclient;
-        private bool closeApp { get; set; }
+        private bool closeApp { get; set; } = false;
 
         private string currentVersion { get; set; }
         private string versionCheckURL { get; set; }
@@ -47,6 +48,14 @@ namespace Updater
             this.path = path;
             this.updaterPath = updaterPath;
             this.zipExtractPath = zipExtractPath;
+            if (zipExtractPath == "")
+            {
+                this.zipExtractPath = Path.Combine(Path.GetDirectoryName(System.Reflection.Assembly.GetEntryAssembly().Location),"TempUpdate");
+            }
+            if (!Directory.Exists(this.zipExtractPath))
+            {
+                Directory.CreateDirectory(this.zipExtractPath);
+            }
             this.executablePath = executablePath;
             isZip = true;
             webclient = new WebClient();
@@ -56,18 +65,19 @@ namespace Updater
             }
         }
 
-        public void VersionCheckDownloadUpdateFile(string currentVersion, string versionCheckURL, Func<string,string,bool> versionChecker, bool async = false)
+        public void VersionCheckDownloadUpdateFile(string currentVersion, string versionCheckURL, Func<string,string,bool> versionChecker, bool async = false, bool closeApp =false)
         {
             this.currentVersion = currentVersion;
             this.versionCheckURL = versionCheckURL;
             this.versionChecker = versionChecker;
+            this.closeApp = closeApp;
             webclient.DownloadStringCompleted += DownloadVersion;
             if (!async)
             {
                 string n = webclient.DownloadString(versionCheckURL);
                 if (versionChecker.Invoke(currentVersion, n))
                 {
-                    DownloadUpdateFile(false, false);
+                    DownloadUpdateFile(false, closeApp);
                 }
             }
             else
@@ -87,7 +97,7 @@ namespace Updater
             }
             if (!versionChecker.Invoke(currentVersion, e.Result))
             {
-                DownloadUpdateFile(true, false);
+                DownloadUpdateFile(true, closeApp);
             }
         }
 
@@ -118,10 +128,23 @@ namespace Updater
 
             if (isZip)
             {
-                System.IO.Compression.ZipFile.ExtractToDirectory(path, zipExtractPath);
-
+                ZipArchive zip = ZipFile.Open(path, ZipArchiveMode.Read);
+                foreach(ZipArchiveEntry z in zip.Entries)
+                {
+                    if (File.Exists(Path.Combine(zipExtractPath, z.FullName)))
+                    {
+                        File.Delete(Path.Combine(zipExtractPath, z.FullName));
+                    }
+                    if (!Directory.Exists(Path.Combine(zipExtractPath, Path.GetDirectoryName(z.FullName))))
+                    {
+                        Directory.CreateDirectory(Path.Combine(zipExtractPath,Path.GetDirectoryName(z.FullName)));
+                    }
+                    z.ExtractToFile(Path.Combine(zipExtractPath, z.FullName));
+                }
+                zip.Dispose();
+                File.Delete(path);
             }
-            //UpdateFileDownloaded(this, EventArgs.Empty);
+            UpdateFileDownloaded?.Invoke(this, EventArgs.Empty);
             SetProcessExitEvent();
             if (closeApp)
             {
@@ -136,13 +159,14 @@ namespace Updater
 
         private void ProcessExit(object sender, EventArgs e)
         {
+            File.WriteAllBytes(updaterPath, Properties.Resources.Updater);
             if (!isZip)
             {
-                Process.Start(updaterPath, string.Format("\"{0}\" \"{1}\"", System.Reflection.Assembly.GetEntryAssembly().Location, path));
+                Process.Start(updaterPath, string.Format("\"{0}\" \"{1}\" \"{2}\" \"{3}\"", "exe", Process.GetCurrentProcess().ProcessName ,System.Reflection.Assembly.GetEntryAssembly().Location, path));
             }
             else
             {
-                Process.Start(updaterPath, string.Format("\"{0}\" \"{1}\" \"{2}\"", System.Reflection.Assembly.GetEntryAssembly().Location, path, Path.Combine(zipExtractPath,executablePath)));
+                Process.Start(updaterPath, string.Format("\"{0}\" \"{1}\" \"{2}\" \"{3}\" \"{4}\"", "zip", Process.GetCurrentProcess().ProcessName, System.Reflection.Assembly.GetEntryAssembly().Location, Path.Combine(zipExtractPath,executablePath), zipExtractPath));
             }
 
         }
